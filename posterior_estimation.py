@@ -159,7 +159,7 @@ def majority_voting(probs):
 def active_learning(X, Y, X_true, Y_true, true, sampling=random_sampling, iters=100, metric=sse,
                     num_committee=1):
     indices = set()
-    for a in range(4):
+    for a in range(10):
         indices.add(a)
     acc = []
     aucs = []
@@ -206,19 +206,28 @@ def run(d, mu0, covar0, mu1, covar1, name="", num_exp=100):
     errors = [[], [], []]
     accuracies = [[], [], []]
     roc_aucs = [[], [], []]
+    avg_samples = [0, 0]
     X_true, Y_true = gen_data(d, mu0, covar0, mu1, covar1, 10_000)
     pdf1 = multivariate_normal(mean=mu1, cov=covar1).pdf(X_true[:, 1:])
     pdf0 = multivariate_normal(mean=mu0, cov=covar0).pdf(X_true[:, 1:])
     true = pdf1 / (pdf0 + pdf1)
     for i in range(num_exp):
-        print("Experiment number:", i + 1)
+        print("\nExperiment number:", i + 1)
         exp_start_time = time.time()
-        X, Y = gen_data(d, mu0, covar0, mu1, covar1, 200)
+        X, Y = gen_data(d, mu0, covar0, mu1, covar1, 10000)
         acc, aucs, comparison = active_learning(X, Y, X_true, Y_true, true, random_sampling)
+        # comparison1 = []
+        # while len(comparison1) < 50:
+        #     X, Y = gen_data(d, mu0, covar0, mu1, covar1, 1000)
         acc1, aucs1, comparison1 = active_learning(X, Y, X_true, Y_true, true, uncertainty_sampling)
         print("Num of Queries made for Uncertainty Sampling:", len(comparison1))
+        avg_samples[0] += len(comparison1)
+        # comparison2 = []
+        # while len(comparison2) < 50:
+        #     X, Y = gen_data(d, mu0, covar0, mu1, covar1, 1000)
         acc2, aucs2, comparison2 = active_learning(X, Y, X_true, Y_true, true, query_by_committee, num_committee=11)
         print("Num of Queries made for Query by Committee:", len(comparison2))
+        avg_samples[1] += len(comparison2)
         if len(errors[0]) == 0:
             errors[0] = np.array(comparison)
             errors[1] = extend_array(np.array(comparison1), len(errors[0]))
@@ -244,8 +253,11 @@ def run(d, mu0, covar0, mu1, covar1, name="", num_exp=100):
     errors = [e / num_exp for e in errors]
     accuracies = [a / num_exp for a in accuracies]
     roc_aucs = [r / num_exp for r in roc_aucs]
-
-    fn_names = ["Random Sampling", "Uncertainty Sampling", "Query By Committee"]
+    avg_samples = [a/num_exp for a in avg_samples]
+    print()
+    print("Average number of samples used for Uncertainty Sampling:", avg_samples[0])
+    print("Average number of samples used for Query by Committee:", avg_samples[1])
+    fn_names = ["Random Sampling", "Uncertainty Sampling", "Query by Committee"]
     plot(errors, name, "Posterior Diff (SSE)", fn_names)
     plot(accuracies, name, "Accuracy", fn_names)
     plot(roc_aucs, name, "ROC AUC", fn_names)
@@ -253,11 +265,11 @@ def run(d, mu0, covar0, mu1, covar1, name="", num_exp=100):
 
 start_time = time.time()
 d = 1
-mu0 = np.array([1])
-mu1 = np.array([2])
-covar0 = np.array([2]) * np.identity(d)
-covar1 = np.array([2]) * np.identity(d)
-run(d, mu0, covar0, mu1, covar1, name="Less Separation", num_exp=100)
+mu0 = np.array([0])
+mu1 = np.array([1])
+covar0 = np.array([1]) * np.identity(d)
+covar1 = np.array([1]) * np.identity(d)
+run(d, mu0, covar0, mu1, covar1, name="Less Separation", num_exp=10)
 print("Total time taken:", time.time() - start_time)
 
 # d = 1
