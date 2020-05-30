@@ -1,10 +1,11 @@
-import math
-import random
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import multivariate_normal
+
+from DataUtils import gen_data, extend_array, sse, plot
+from Evaluation import calc_accuracy, roc, auc, compare_posterirors
+from SamplingMethods import random_sampling, uncertainty_sampling, query_by_committee
 
 
 def sigmoid(X, w):
@@ -28,134 +29,6 @@ def log_reg(X, Y, eta=1, max_steps=200):
     return w
 
 
-def shuffle_together(arrays):
-    ind = list(range(len(arrays[0])))
-    random.shuffle(ind)
-    return [X[ind] for X in arrays]
-
-
-def calc_accuracy(y_test, test_pred, thresh=0.5):
-    correct = 0
-    y_test_ = list(y_test)
-    test_pred_ = list(test_pred)
-    for i in range(y_test.shape[0]):
-        if test_pred_[i] > thresh:
-            if y_test_[i] == 1:
-                correct += 1
-        else:
-            if y_test_[i] == 0:
-                correct += 1
-    return correct / y_test.shape[0]
-
-
-def roc(y_test, probs):
-    r = [(0, 0)]
-    prev_c = None
-    zeros = 0
-    ones = 0
-    total_ones = sum(list(y_test))
-    total_zeros = len(list(y_test)) - total_ones
-    for _, c in sorted(zip(probs, list(y_test)), reverse=True):
-        if not (prev_c is None or prev_c == c):
-            tpr = ones / total_ones
-            fpr = zeros / total_zeros
-            r.append((fpr, tpr))
-        if c == 0:
-            zeros += 1
-        else:
-            ones += 1
-        prev_c = c
-    r.append((1, 1))
-    return r
-
-
-def auc(r):
-    area = 0
-    prev = 0
-    for a, b in r:
-        area += (b - prev) * (1 - a)
-        prev = b
-    return area
-
-
-def compare_posterirors(true, pred, distance_metric):
-    errors = [abs(t - p) for t, p in zip(true, pred)]
-    return distance_metric(errors)
-
-
-def max_metric(errors):
-    return max(errors)
-
-
-def avg_metric(errors):
-    return sum(errors) / len(errors)
-
-
-def sse(errors):
-    return sum([x ** 2 for x in errors]) / len(errors)
-
-
-def gen_data(d, mu0, covar0, mu1, covar1, n):
-    X = np.concatenate((np.random.multivariate_normal(mu0, covar0, int(n / 2)),
-                        np.random.multivariate_normal(mu1, covar1, int(n / 2))))
-    X_new = np.ones((X.shape[0], X.shape[1] + 1))
-    X_new[:, 1:] = X
-    X = X_new
-    Y = np.concatenate((np.zeros((int(n / 2),)), np.ones((int(n / 2),))))
-    X, Y = shuffle_together((X, Y))
-    return X, Y
-
-
-def random_sampling(indices, probs):
-    return len(indices) + 1
-
-
-def uncertainty_sampling(indices, probs):
-    ind = -1
-    min_diff = 0.5
-    pr = probs[0]
-    for i in range(len(pr)):
-        if i in indices:
-            continue
-        diff = abs(0.5 - pr[i])
-        if diff < min_diff:
-            min_diff = diff
-            ind = i
-    return ind
-
-
-def query_by_committee(indices, probs):
-    # using vote entropy
-    # each row of probs is the probs of each committee member.
-    ind = -1
-    max_entropy = 0
-    C = probs.shape[0]
-    for i in range(probs.shape[1]):
-        if i in indices:
-            continue
-        vote0 = 0
-        vote1 = 0
-        for p in probs[:, i]:
-            if p > 0.5:
-                vote1 += 1
-            else:
-                vote0 += 1
-        entropy = 0
-        if vote0 != 0:
-            entropy -= (vote0 / C) * math.log(vote0 / C)
-        if vote1 != 0:
-            entropy -= (vote1 / C) * math.log(vote1 / C)
-
-        if entropy > max_entropy:
-            max_entropy = entropy
-            ind = i
-    return ind
-
-
-def majority_voting(probs):
-    return np.round(np.sum(np.round(probs), axis=0) / probs.shape[0])
-
-
 def active_learning(X, Y, X_true, Y_true, true, sampling=random_sampling, iters=100, metric=sse,
                     num_committee=1):
     indices = set()
@@ -172,7 +45,8 @@ def active_learning(X, Y, X_true, Y_true, true, sampling=random_sampling, iters=
         w = np.array(w)
         # w = log_reg(X[list(indices)], Y[list(indices)])
         # Majority voting is used to decide the outcome of the committee.
-        true_probs = majority_voting(sigmoid(X_true, w.T).T)
+        probs = sigmoid(X_true, w.T).T
+        true_probs = np.sum(probs, axis=0)/probs.shape[0]
         acc.append(calc_accuracy(Y_true, true_probs))
         aucs.append(auc(roc(Y_true, true_probs)))
         comparison.append(compare_posterirors(true, true_probs, metric))
@@ -184,22 +58,6 @@ def active_learning(X, Y, X_true, Y_true, true, sampling=random_sampling, iters=
             break
         # final_result = sigmoid(X_true, w)
     return acc, aucs, comparison
-
-
-def extend_array(arr, n):
-    idx = [min(i, len(arr) - 1) for i in range(n)]
-    return arr[idx]
-
-
-def plot(fn, name, plt_name, fn_names):
-    for f, n in zip(fn, fn_names):
-        plt.plot(f, label=n)
-    plt.xlabel("Number of training examples")
-    plt.ylabel(plt_name)
-    plt.title(name + " - " + plt_name)
-    plt.legend()
-    plt.savefig(name + " " + plt_name + ".jpg")
-    plt.show()
 
 
 def run(d, mu0, covar0, mu1, covar1, name="", num_exp=100):
