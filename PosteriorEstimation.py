@@ -5,7 +5,7 @@ from scipy.stats import multivariate_normal
 
 from DataUtils import gen_data, extend_array, sse, plot
 from Evaluation import calc_accuracy, roc, auc, compare_posterirors
-from SamplingMethods import random_sampling, uncertainty_sampling, query_by_committee
+from SamplingMethods import random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2
 
 
 def sigmoid(X, w):
@@ -83,7 +83,7 @@ def run(d, mu0, covar0, mu1, covar1, name="", num_exp=100):
         # comparison2 = []
         # while len(comparison2) < 50:
         #     X, Y = gen_data(d, mu0, covar0, mu1, covar1, 1000)
-        acc2, aucs2, comparison2 = active_learning(X, Y, X_true, Y_true, true, query_by_committee, num_committee=11)
+        acc2, aucs2, comparison2 = active_learning(X, Y, X_true, Y_true, true, query_by_committee2, num_committee=11)
         print("Num of Queries made for Query by Committee:", len(comparison2))
         avg_samples[1] += len(comparison2)
         if len(errors[0]) == 0:
@@ -127,7 +127,7 @@ mu0 = np.array([0])
 mu1 = np.array([1])
 covar0 = np.array([1]) * np.identity(d)
 covar1 = np.array([1]) * np.identity(d)
-run(d, mu0, covar0, mu1, covar1, name="Less Separation", num_exp=10)
+run(d, mu0, covar0, mu1, covar1, name="Less Separation", num_exp=100)
 print("Total time taken:", time.time() - start_time)
 
 # d = 1

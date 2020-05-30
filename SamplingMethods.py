@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 
 def random_sampling(indices, probs):
@@ -19,7 +20,7 @@ def uncertainty_sampling(indices, probs):
     return ind
 
 
-def query_by_committee(indices, probs):
+def query_by_committee1(indices, probs):
     # using vote entropy
     # each row of probs is the probs of each committee member.
     ind = -1
@@ -43,5 +44,26 @@ def query_by_committee(indices, probs):
 
         if entropy > max_entropy:
             max_entropy = entropy
+            ind = i
+    return ind
+
+
+def query_by_committee2(indices, probs):
+    # using Average KL Divergence
+    # each row of probs is the probs of each committee member.
+    ind = -1
+    max_kld = 0
+    C = probs.shape[0]
+    for i in range(probs.shape[1]):
+        if i in indices:
+            continue
+        pc = np.sum(probs[:, i])/probs.shape[0]
+        kl_div = 0
+        for p in probs[:, i]:
+            if p == 0:
+                continue
+            kl_div += p*math.log(p/pc)
+        if kl_div > max_kld:
+            max_kld = kl_div
             ind = i
     return ind
