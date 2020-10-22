@@ -5,55 +5,39 @@ from scipy.stats import multivariate_normal
 
 from DataUtils import gen_data, extend_array, sse, plot, shuffle_together
 from Evaluation import calc_accuracy, roc, auc, compare_posterirors
+from LogisticRegression import log_reg, log_reg_predict
+from NeuralNetwork import nn, nn_predict
 from SamplingMethods import random_sampling, uncertainty_sampling, query_by_committee2, query_by_committee1
 
 
-def sigmoid(X, w):
-    return 1 / (1 + np.exp(-np.dot(X, w)))
-
-
-def log_reg(X, Y, eta=1, max_steps=200):
-    # w = np.dot(np.dot(np.linalg.inv(np.dot(np.transpose(X), X)), np.transpose(X)), Y)
-    w = np.random.rand(X.shape[1], 1)
-    step = 0
-    Y = np.reshape(Y, (Y.shape[0], 1))
-    while step < max_steps:
-        p = sigmoid(X, w)
-        inv = np.dot(np.transpose(X), np.dot(np.diagflat(np.multiply(p, 1 - p)), X))
-        if np.linalg.det(inv) == 0:
-            break
-        temp = np.linalg.inv(inv)
-        w_new = w + eta * np.dot(temp, np.dot(np.transpose(X), Y - p))
-        w = w_new
-        step += 1
-    return w.reshape((X.shape[1],))
-
-
-def active_learning(X, Y, X_true, Y_true, true, sampling=random_sampling, iters=100, metric=sse,
+def active_learning(X, Y, X_true, Y_true, true, learner, sampling=random_sampling, iters=100, metric=sse,
                     num_committee=1):
+    print(sampling.__name__)
+    [method, predictor] = learner
     indices = set()
-    for a in range(10):
+    for a in range(4):
         indices.add(a)
     acc = []
     aucs = []
     comparison = []
     for j in range(iters):
-        w = []
+        models = []
         for _ in range(num_committee):
-            w.append(log_reg(X[list(indices)], Y[list(indices)]))
-        w = np.array(w)
-        probs = sigmoid(X_true, w.T).T
+            models.append(method(X[list(indices)], Y[list(indices)]))
+        probs = predictor(models, X_true)
         true_probs = np.sum(probs, axis=0) / probs.shape[0]
-        acc.append(calc_accuracy(Y_true, true_probs))
+        a = calc_accuracy(Y_true, true_probs)
+        acc.append(a)
+        print("Iter:", j, "-", a)
         aucs.append(auc(roc(Y_true, true_probs)))
         comparison.append(compare_posterirors(true, true_probs, metric))
 
         prev_len = len(indices)
-        probs = sigmoid(X, w.T).T
+        probs = predictor(models, X)
         indices.add(sampling(indices, probs))
         if len(indices) == prev_len:
             break
-        # final_result = sigmoid(X_true, w)
+        del models
     return np.array(acc), np.array(aucs), np.array(comparison)
 
 
@@ -118,7 +102,7 @@ def run1(d, mu0, covar0, mu1, covar1, name="", num_exp=100):
     plot(roc_aucs, name, "ROC AUC", fn_names)
 
 
-def run2(X, Y, true, sampling_methods, num_committees, name="", num_exp=50, iters=100):
+def run2(X, Y, true, learner, sampling_methods, num_committees, name="", num_exp=50, iters=100):
     X, Y, true = shuffle_together([X, Y, true])
     X_new = np.ones((X.shape[0], X.shape[1] + 1))
     X_new[:, 1:] = X
@@ -136,10 +120,11 @@ def run2(X, Y, true, sampling_methods, num_committees, name="", num_exp=50, iter
         start = 10_000 + (10_000 * i)
         end = start + 10_000
         x, y = X[start:end], Y[start:end]
-        exp_result = [active_learning(x, y, X_true, Y_true, true, sampling=s, num_committee=c, iters=iters) for s, c in
+        exp_result = [active_learning(x, y, X_true, Y_true, true, learner, sampling=s, num_committee=c, iters=iters) for
+                      s, c in
                       zip(sampling_methods, num_committees)]
         for j, (a, ra, pd) in enumerate(exp_result):
-            if j >= len(accuracy):
+            if i == 0:
                 accuracy.append(extend_array(a, iters))
                 roc_auc.append(extend_array(ra, iters))
                 posterior_diff.append(extend_array(pd, iters))
@@ -171,19 +156,17 @@ def run2(X, Y, true, sampling_methods, num_committees, name="", num_exp=50, iter
 
 start_time = time.time()
 
-run2(np.load("x.npy"), np.load("y.npy"), np.load("true.npy"),
+print("Starting with Neural Network")
+run2(np.load("x.npy"), np.load("y.npy"), np.load("true.npy"), [nn, nn_predict],
      [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 10, 10],
-     name="2Comp4D", num_exp=10)
+     name="NN_2Comp4D", num_exp=5, iters=100)
 
-# d = 2
-# mu0 = np.array([0, 0])
-# mu1 = np.array([1, 1])
-# covar0 = np.array([1, 1]) * np.identity(d)
-# covar1 = np.array([1, 1]) * np.identity(d)
-# X, Y = gen_data(d, mu0, covar0, mu1, covar1, n=1000_000)[:2]
-# run2(X[:, 1:], Y, [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 10, 10],
-#      name="2Comp4D", num_exp=10)
+# print("Starting with Logistic Regression")
+# run2(np.load("x.npy"), np.load("y.npy"), np.load("true.npy"), [log_reg, log_reg_predict],
+#      [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 10, 10],
+#      name="LR_2Comp4D", num_exp=1)
 
+print("Total time taken:", time.time() - start_time)
 
 # d = 1
 # mu0 = np.array([0])
@@ -192,18 +175,3 @@ run2(np.load("x.npy"), np.load("y.npy"), np.load("true.npy"),
 # covar1 = np.array([1]) * np.identity(d)
 # run1(d, mu0, covar0, mu1, covar1, name="Less Separation", num_exp=100)
 
-print("Total time taken:", time.time() - start_time)
-
-# d = 1
-# mu0 = np.array([1])
-# mu1 = np.array([5])
-# covar0 = np.array([1.5]) * np.identity(d)
-# covar1 = np.array([1]) * np.identity(d)
-# run(*gen_data(d, mu0, covar0, mu1, covar1), name="More separation")
-
-# d = 4
-# mu0 = np.array([1, 2, 3, 4])
-# mu1 = np.array([1.1, 1.8, 3.3, 3.6])
-# covar0 = np.array([1.5, 1.2, .5, 1]) * np.identity(d)
-# covar1 = np.array([1, 1.8, 0.9, 1.9]) * np.identity(d)
-# run(d, mu0, covar0, mu1, covar1, name="4D", num_exp=2)
