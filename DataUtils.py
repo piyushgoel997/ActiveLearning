@@ -2,6 +2,7 @@ import random
 
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy.stats import multivariate_normal
 
 
 def shuffle_together(arrays):
@@ -10,15 +11,22 @@ def shuffle_together(arrays):
     return [X[ind] for X in arrays]
 
 
-def gen_data(d, mu0, covar0, mu1, covar1, n):
+def normal_data_generator(d, n, mu0, covar0, mu1, covar1, shuffle=True):
     X = np.concatenate((np.random.multivariate_normal(mu0, covar0, int(n / 2)),
                         np.random.multivariate_normal(mu1, covar1, int(n / 2))))
     X_new = np.ones((X.shape[0], X.shape[1] + 1))
     X_new[:, 1:] = X
     X = X_new
     Y = np.concatenate((np.zeros((int(n / 2),)), np.ones((int(n / 2),))))
-    X, Y = shuffle_together((X, Y))
+    if shuffle:
+        X, Y = shuffle_together((X, Y))
     return X, Y
+
+
+def get_probability_distr(X, mu0, covar0, mu1, covar1):
+    pdf1 = multivariate_normal(mean=mu1, cov=covar1).pdf(X[:, 1:])
+    pdf0 = multivariate_normal(mean=mu0, cov=covar0).pdf(X[:, 1:])
+    return pdf1 / (pdf0 + pdf1)
 
 
 def extend_array(arr, n):

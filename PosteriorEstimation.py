@@ -1,11 +1,11 @@
+import argparse
 import time
 
 import numpy as np
-from scipy.stats import multivariate_normal
 
-from DataUtils import gen_data, extend_array, sse, plot, shuffle_together
+from DataUtils import normal_data_generator, extend_array, sse, plot, get_probability_distr
 from Evaluation import calc_accuracy, roc, auc, compare_posterirors
-from LogisticRegression import log_reg, log_reg_predict
+# from LogisticRegression import log_reg, log_reg_predict
 from NeuralNetwork import nn, nn_predict
 from SamplingMethods import random_sampling, uncertainty_sampling, query_by_committee2, query_by_committee1
 
@@ -28,7 +28,7 @@ def active_learning(X, Y, X_true, Y_true, true, learner, sampling=random_samplin
         true_probs = np.sum(probs, axis=0) / probs.shape[0]
         a = calc_accuracy(Y_true, true_probs)
         acc.append(a)
-        print("Iter:", j, "-", a)
+        # print("Iter:", j, "-", a)
         aucs.append(auc(roc(Y_true, true_probs)))
         comparison.append(compare_posterirors(true, true_probs, metric))
 
@@ -38,72 +38,12 @@ def active_learning(X, Y, X_true, Y_true, true, learner, sampling=random_samplin
         if len(indices) == prev_len:
             break
         del models
+    print("Final accuracy", acc[-1], ", Final AUC", aucs[-1],
+          ", Final diff between the learned and the actual posterior", comparison[-1])
     return np.array(acc), np.array(aucs), np.array(comparison)
 
 
-def run1(d, mu0, covar0, mu1, covar1, name="", num_exp=100):
-    errors = [[], [], []]
-    accuracies = [[], [], []]
-    roc_aucs = [[], [], []]
-    avg_samples = [0, 0]
-    X_true, Y_true = gen_data(d, mu0, covar0, mu1, covar1, 10_000)
-    pdf1 = multivariate_normal(mean=mu1, cov=covar1).pdf(X_true[:, 1:])
-    pdf0 = multivariate_normal(mean=mu0, cov=covar0).pdf(X_true[:, 1:])
-    true = pdf1 / (pdf0 + pdf1)
-    for i in range(num_exp):
-        print("\nExperiment number:", i + 1)
-        exp_start_time = time.time()
-        X, Y = gen_data(d, mu0, covar0, mu1, covar1, 10_000)
-        acc, aucs, comparison = active_learning(X, Y, X_true, Y_true, true, random_sampling)
-        # comparison1 = []
-        # while len(comparison1) < 50:
-        #     X, Y = gen_data(d, mu0, covar0, mu1, covar1, 1000)
-        acc1, aucs1, comparison1 = active_learning(X, Y, X_true, Y_true, true, uncertainty_sampling)
-        print("Num of Queries made for Uncertainty Sampling:", len(comparison1))
-        avg_samples[0] += len(comparison1)
-        # comparison2 = []
-        # while len(comparison2) < 50:
-        #     X, Y = gen_data(d, mu0, covar0, mu1, covar1, 1000)
-        acc2, aucs2, comparison2 = active_learning(X, Y, X_true, Y_true, true, query_by_committee2, num_committee=11)
-        print("Num of Queries made for Query by Committee:", len(comparison2))
-        avg_samples[1] += len(comparison2)
-        if len(errors[0]) == 0:
-            errors[0] = np.array(comparison)
-            errors[1] = extend_array(np.array(comparison1), len(errors[0]))
-            errors[2] = extend_array(np.array(comparison2), len(errors[0]))
-            accuracies[0] = np.array(acc)
-            accuracies[1] = extend_array(np.array(acc1), len(accuracies[0]))
-            accuracies[2] = extend_array(np.array(acc2), len(accuracies[0]))
-            roc_aucs[0] = np.array(aucs)
-            roc_aucs[1] = extend_array(np.array(aucs1), len(roc_aucs[0]))
-            roc_aucs[2] = extend_array(np.array(aucs2), len(roc_aucs[0]))
-        else:
-            errors[0] += np.array(comparison)
-            errors[1] += extend_array(np.array(comparison1), len(errors[0]))
-            errors[2] += extend_array(np.array(comparison2), len(errors[0]))
-            accuracies[0] += np.array(acc)
-            accuracies[1] += extend_array(np.array(acc1), len(accuracies[0]))
-            accuracies[2] += extend_array(np.array(acc2), len(accuracies[0]))
-            roc_aucs[0] += np.array(aucs)
-            roc_aucs[1] += extend_array(np.array(aucs1), len(roc_aucs[0]))
-            roc_aucs[2] += extend_array(np.array(aucs2), len(roc_aucs[0]))
-        print("Time taken:", time.time() - exp_start_time)
-
-    errors = [e / num_exp for e in errors]
-    accuracies = [a / num_exp for a in accuracies]
-    roc_aucs = [r / num_exp for r in roc_aucs]
-    avg_samples = [a / num_exp for a in avg_samples]
-    print()
-    print("Average number of samples used for Uncertainty Sampling:", avg_samples[0])
-    print("Average number of samples used for Query by Committee:", avg_samples[1])
-    fn_names = ["Random Sampling", "Uncertainty Sampling", "Query by Committee"]
-    plot(errors, name, "Posterior Diff (SSE)", fn_names)
-    plot(accuracies, name, "Accuracy", fn_names)
-    plot(roc_aucs, name, "ROC AUC", fn_names)
-
-
-def run2(X, Y, true, learner, sampling_methods, num_committees, name="", num_exp=50, iters=100):
-    X, Y, true = shuffle_together([X, Y, true])
+def run(X, Y, true, learner, sampling_methods, num_committees, name="", num_exp=50, iters=100):
     X_new = np.ones((X.shape[0], X.shape[1] + 1))
     X_new[:, 1:] = X
     X = X_new
@@ -121,8 +61,7 @@ def run2(X, Y, true, learner, sampling_methods, num_committees, name="", num_exp
         end = start + 10_000
         x, y = X[start:end], Y[start:end]
         exp_result = [active_learning(x, y, X_true, Y_true, true, learner, sampling=s, num_committee=c, iters=iters) for
-                      s, c in
-                      zip(sampling_methods, num_committees)]
+                      s, c in zip(sampling_methods, num_committees)]
         for j, (a, ra, pd) in enumerate(exp_result):
             if i == 0:
                 accuracy.append(extend_array(a, iters))
@@ -154,24 +93,43 @@ def run2(X, Y, true, learner, sampling_methods, num_committees, name="", num_exp
     plot(roc_auc, name, "ROC AUC", fn_names)
 
 
-start_time = time.time()
+if __name__ == "__main__":
 
-print("Starting with Neural Network")
-run2(np.load("x.npy"), np.load("y.npy"), np.load("true.npy"), [nn, nn_predict],
-     [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 10, 10],
-     name="NN_2Comp4D", num_exp=5, iters=100)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gendata', nargs='?', const=True, default=False)
+    args = parser.parse_args()
 
-# print("Starting with Logistic Regression")
-# run2(np.load("x.npy"), np.load("y.npy"), np.load("true.npy"), [log_reg, log_reg_predict],
-#      [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 10, 10],
-#      name="LR_2Comp4D", num_exp=1)
+    start_time = time.time()
 
-print("Total time taken:", time.time() - start_time)
+    if args.gendata:
+        print("Generating data")
 
-# d = 1
-# mu0 = np.array([0])
-# mu1 = np.array([1])
-# covar0 = np.array([1]) * np.identity(d)
-# covar1 = np.array([1]) * np.identity(d)
-# run1(d, mu0, covar0, mu1, covar1, name="Less Separation", num_exp=100)
+        mu0, covar0, = np.array([1, 2, 3, 4]), np.array([1.6, 1.2, 1.5, 1]) * np.identity(4)
+        mu1, covar1 = np.array([3, 3, 6, 1]), np.array([1, 2, 0.5, 1.9]) * np.identity(4)
 
+        X, Y = normal_data_generator(4, 10_000_000, mu0, covar0, mu1, covar1)
+        true = get_probability_distr(X, mu0, covar0, mu1, covar1)
+
+        np.save("x.npy", X)
+        np.save("y.npy", Y)
+        np.save("true.npy", true)
+
+        print("Time taken for data generation:", time.time() - start_time)
+    else:
+        X = np.load("x.npy")
+        Y = np.load("y.npy")
+        true = np.load("true.npy")
+        print("Time taken for loading data:", time.time() - start_time)
+
+    start_time = time.time()
+    print("Starting with Neural Network")
+    run(X, Y, true, [nn, nn_predict],
+        [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 10, 10],
+        name="NN_2Comp4D", num_exp=5, iters=100)
+
+    print("Starting with Logistic Regression")
+    # run(X, Y, true, [log_reg, log_reg_predict],
+    #     [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 10, 10],
+    #     name="LR_2Comp4D", num_exp=1)
+
+    print("Total time taken:", time.time() - start_time)
