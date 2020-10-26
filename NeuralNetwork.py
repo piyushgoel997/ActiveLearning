@@ -14,7 +14,7 @@ def get_model():
 
 def nn(X, Y):
     model = get_model()
-    model.fit(X, Y, epochs=100, verbose=0)
+    model.fit(X, Y, epochs=100, verbose=0, batch_size=128)
     return model
 
 

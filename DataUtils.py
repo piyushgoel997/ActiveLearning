@@ -14,9 +14,9 @@ def shuffle_together(arrays):
 def normal_data_generator(d, n, mu0, covar0, mu1, covar1, shuffle=True):
     X = np.concatenate((np.random.multivariate_normal(mu0, covar0, int(n / 2)),
                         np.random.multivariate_normal(mu1, covar1, int(n / 2))))
-    X_new = np.ones((X.shape[0], X.shape[1] + 1))
-    X_new[:, 1:] = X
-    X = X_new
+    # X_new = np.ones((X.shape[0], X.shape[1] + 1))
+    # X_new[:, 1:] = X
+    # X = X_new
     Y = np.concatenate((np.zeros((int(n / 2),)), np.ones((int(n / 2),))))
     if shuffle:
         X, Y = shuffle_together((X, Y))
@@ -24,8 +24,8 @@ def normal_data_generator(d, n, mu0, covar0, mu1, covar1, shuffle=True):
 
 
 def get_probability_distr(X, mu0, covar0, mu1, covar1):
-    pdf1 = multivariate_normal(mean=mu1, cov=covar1).pdf(X[:, 1:])
-    pdf0 = multivariate_normal(mean=mu0, cov=covar0).pdf(X[:, 1:])
+    pdf1 = multivariate_normal(mean=mu1, cov=covar1).pdf(X)
+    pdf0 = multivariate_normal(mean=mu0, cov=covar0).pdf(X)
     return pdf1 / (pdf0 + pdf1)
 
 
