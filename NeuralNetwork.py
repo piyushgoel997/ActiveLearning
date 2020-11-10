@@ -6,7 +6,10 @@ import numpy as np
 def get_model():
     model = Sequential()
     model.add(Dense(16, activation='relu', kernel_initializer='random_normal'))
-    model.add(Dense(8, activation='relu', kernel_initializer='random_normal'))
+    model.add(Dense(32, activation='relu', kernel_initializer='random_normal'))
+    model.add(Dense(64, activation='relu', kernel_initializer='random_normal'))
+    model.add(Dense(32, activation='relu', kernel_initializer='random_normal'))
+    model.add(Dense(16, activation='relu', kernel_initializer='random_normal'))
     model.add(Dense(1, activation='sigmoid', kernel_initializer='random_normal'))
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
     return model
@@ -14,7 +17,7 @@ def get_model():
 
 def nn(X, Y):
     model = get_model()
-    model.fit(X, Y, epochs=100, verbose=0, batch_size=128)
+    model.fit(X, Y, epochs=100, verbose=0, batch_size=256)
     return model
 
 

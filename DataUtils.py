@@ -62,4 +62,4 @@ def plot(fn, name, plt_name, fn_names):
     plt.title(name + " - " + plt_name)
     plt.legend()
     plt.savefig(name + " " + plt_name + ".jpg")
-    plt.show()
+    plt.close()

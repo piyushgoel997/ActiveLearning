@@ -1,4 +1,5 @@
 import math
+
 import numpy as np
 
 
@@ -6,7 +7,7 @@ def random_sampling(indices, probs):
     return len(indices) + 1
 
 
-def uncertainty_sampling(indices, probs):
+def uncertainty_sampling_hard(indices, probs):
     ind = -1
     min_diff = 0.5
     pr = probs[0]
@@ -18,6 +19,14 @@ def uncertainty_sampling(indices, probs):
             min_diff = diff
             ind = i
     return ind
+
+
+def uncertainty_sampling_soft(indices, probs):
+    pr = probs[0]
+    for i in indices:
+        pr[i] = 0
+    pr /= sum(pr)
+    return np.random.choice(len(pr), 1, p=pr)[0]
 
 
 def query_by_committee1(indices, probs):
@@ -57,12 +66,12 @@ def query_by_committee2(indices, probs):
     for i in range(probs.shape[1]):
         if i in indices:
             continue
-        pc = np.sum(probs[:, i])/probs.shape[0]
+        pc = np.sum(probs[:, i]) / probs.shape[0]
         kl_div = 0
         for p in probs[:, i]:
             if p == 0:
                 continue
-            kl_div += p*math.log(p/pc)
+            kl_div += p * math.log(p / pc)
         if kl_div > max_kld:
             max_kld = kl_div
             ind = i

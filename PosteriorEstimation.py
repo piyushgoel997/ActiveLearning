@@ -1,4 +1,5 @@
 import argparse
+import sys
 import time
 
 import numpy as np
@@ -7,7 +8,7 @@ from DataUtils import normal_data_generator, extend_array, sse, plot, get_probab
 from Evaluation import calc_accuracy, roc, auc, compare_posterirors
 # from LogisticRegression import log_reg, log_reg_predict
 from NeuralNetwork import nn, nn_predict
-from SamplingMethods import random_sampling, uncertainty_sampling, query_by_committee2, query_by_committee1
+from SamplingMethods import random_sampling, uncertainty_sampling_hard, uncertainty_sampling_soft, query_by_committee2
 
 
 def active_learning(X, Y, X_true, Y_true, true, learner, sampling=random_sampling, iters=100, metric=sse,
@@ -29,10 +30,10 @@ def active_learning(X, Y, X_true, Y_true, true, learner, sampling=random_samplin
         a = calc_accuracy(Y_true, true_probs)
         acc.append(a)
         b = auc(roc(Y_true, true_probs))
-        aucs.append(b)
+        aucs.append(b[0])
         c = compare_posterirors(true, true_probs, metric)
         comparison.append(c)
-        print("Iter:", j, "-", a, b, c)
+        print("Iter:", j, "-", a, b[0], c)
 
         prev_len = len(indices)
         probs = predictor(models, X)
@@ -49,7 +50,7 @@ def run(X, Y, true, learner, sampling_methods, num_committees, name="", num_exp=
     X_new = np.ones((X.shape[0], X.shape[1] + 1))
     X_new[:, 1:] = X
     X = X_new
-    numpts_per_exp = 1000
+    numpts_per_exp = 10_000
     X_true = X[:numpts_per_exp]
     Y_true = Y[:numpts_per_exp]
     true = true[:numpts_per_exp]
@@ -89,11 +90,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--gendata', nargs='?', const=True, default=False)
+    parser.add_argument('--loc', nargs='?', const=True, default="")
     args = parser.parse_args()
+
+    sys.stdout = open(args.loc + "log.txt", "w")
 
     start_time = time.time()
 
     if args.gendata:
+        # TODO not updated for the args.loc argument
+
         print("Generating data")
 
         mu0, covar0, = np.array([1, 2, 3, 4]), np.array([1.6, 1.2, 1.5, 1]) * np.identity(4)
@@ -108,16 +114,16 @@ if __name__ == "__main__":
 
         print("Time taken for data generation:", time.time() - start_time)
     else:
-        X = np.load("x.npy")
-        Y = np.load("y.npy")
-        true = np.load("true.npy")
+        X = np.load(args.loc+"x.npy")
+        Y = np.load(args.loc+"y.npy")
+        true = np.load(args.loc+"true.npy")
         print("Time taken for loading data:", time.time() - start_time)
 
     start_time = time.time()
     print("Starting with Neural Network")
     run(X, Y, true, [nn, nn_predict],
-        [random_sampling, uncertainty_sampling, query_by_committee1, query_by_committee2], [1, 1, 5, 5],
-        name="NN_2Comp4D", num_exp=10, iters=100)
+        [random_sampling, uncertainty_sampling_hard, uncertainty_sampling_soft, query_by_committee2], [5, 5, 5, 5],
+        name=args.loc, num_exp=10, iters=250)
 
     # print("Starting with Logistic Regression")
     # run(X, Y, true, [log_reg, log_reg_predict],

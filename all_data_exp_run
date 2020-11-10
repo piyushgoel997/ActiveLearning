@@ -1,0 +1,9 @@
+for dir in /home/piyushgoel997/ActiveLearning/data/*/
+do
+	for subdir in ${dir}*/
+	do
+		echo "starting with ${subdir}"
+		python PosteriorEstimation.py --loc $subdir
+		echo "done with ${subdir}"
+	done
+done
