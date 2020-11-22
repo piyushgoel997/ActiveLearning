@@ -45,3 +45,21 @@ def auc(r):
 def compare_posterirors(true, pred, distance_metric):
     errors = [abs(t - p) for t, p in zip(true, pred)]
     return distance_metric(errors)
+
+
+def f1_score(y_test, test_pred, thresh=0.5):
+    incorrect = 0
+    tp = 0
+    y_test_ = list(y_test)
+    test_pred_ = list(test_pred)
+    for i in range(y_test.shape[0]):
+        if test_pred_[i] > thresh:
+            if y_test_[i] == 1:
+                tp += 1
+            else:
+                incorrect += 1
+        else:
+            if y_test_[i] != 0:
+                incorrect += 1
+
+    return 2*tp / (2*tp + incorrect)

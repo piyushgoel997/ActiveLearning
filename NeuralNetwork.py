@@ -7,7 +7,6 @@ def get_model():
     model = Sequential()
     model.add(Dense(16, activation='relu', kernel_initializer='random_normal'))
     model.add(Dense(32, activation='relu', kernel_initializer='random_normal'))
-    model.add(Dense(64, activation='relu', kernel_initializer='random_normal'))
     model.add(Dense(32, activation='relu', kernel_initializer='random_normal'))
     model.add(Dense(16, activation='relu', kernel_initializer='random_normal'))
     model.add(Dense(1, activation='sigmoid', kernel_initializer='random_normal'))
@@ -17,7 +16,7 @@ def get_model():
 
 def nn(X, Y):
     model = get_model()
-    model.fit(X, Y, epochs=100, verbose=0, batch_size=256)
+    model.fit(X, Y, epochs=100, verbose=0)
     return model
 
 
