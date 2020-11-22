@@ -25,8 +25,16 @@ def uncertainty_sampling_soft(indices, probs):
     pr = probs[0]
     for i in indices:
         pr[i] = 0
-    pr /= sum(pr)
-    return np.random.choice(len(pr), 1, p=pr)[0]
+    diffs = []
+    for i in range(len(pr)):
+        if i in indices:
+            diffs.append(0)
+        else:
+            diffs.append(1 - abs(0.5 - pr[i]))
+    diffs = np.array(diffs)
+    diffs /= sum(diffs)
+    # print(diffs)
+    return np.random.choice(len(diffs), 1, p=diffs)[0]
 
 
 def query_by_committee1(indices, probs):
